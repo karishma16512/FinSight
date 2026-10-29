@@ -1,4 +1,6 @@
-import { AlertTriangle, ArrowRight, BookOpen, CarFront, ChevronDown, Clapperboard, HeartPulse, Home, Plus, ShoppingBag, ShoppingCart, Zap } from 'lucide-react'
+import { AlertTriangle, ArrowRight, BookOpen, CarFront, Clapperboard, HeartPulse, Home, Pencil, Plus, ShoppingBag, ShoppingCart, Trash2, Zap } from 'lucide-react'
+import { useState } from 'react'
+import { deleteBudget, saveBudget } from '../services/financeApi'
 import { formatCurrency } from '../utils/formatters'
 
 const budgetIcons = {
@@ -12,25 +14,72 @@ const budgetIcons = {
   entertainment: Clapperboard,
 }
 
-function Budgets({ budgets }) {
+function Budgets({ budgets, onDataChange }) {
+  const [formOpen, setFormOpen] = useState(false)
+  const [editing, setEditing] = useState(null)
+  const [form, setForm] = useState({ category: '', limit: '' })
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
+  const [alertDismissed, setAlertDismissed] = useState(false)
+  const [monthLabel] = useState(() => new Intl.DateTimeFormat('en', { month: 'long', year: 'numeric' }).format(new Date()))
   const totalLimit = budgets.reduce((total, budget) => total + budget.limit, 0)
   const totalSpent = budgets.reduce((total, budget) => total + budget.spent, 0)
   const overspentBudgets = budgets.filter((budget) => budget.spent > budget.limit)
   const remaining = totalLimit - totalSpent
+  const percentageUsed = totalLimit > 0 ? Math.round((totalSpent / totalLimit) * 100) : 0
+
+  function openForm(budget = null) {
+    setEditing(budget)
+    setForm(budget ? { category: budget.category, limit: String(budget.limit) } : { category: '', limit: '' })
+    setFormOpen(true)
+    setError('')
+  }
+
+  function handleSave(event) {
+    event.preventDefault()
+    try {
+      saveBudget({
+        ...editing,
+        ...form,
+        icon: editing?.icon || 'shopping-cart',
+        color: editing?.color || 'violet',
+      }, editing?.id)
+      onDataChange()
+      setFormOpen(false)
+      setSuccess(editing ? 'Budget updated.' : 'Budget created.')
+      setError('')
+    } catch (saveError) {
+      setError(saveError.message || 'Unable to save this budget.')
+    }
+  }
+
+  function handleDelete(budget) {
+    if (!window.confirm(`Delete the ${budget.category} budget?`)) return
+    try {
+      deleteBudget(budget.id)
+      onDataChange()
+      setSuccess(`${budget.category} budget deleted.`)
+      setError('')
+    } catch (deleteError) {
+      setError(deleteError.message || 'Unable to delete this budget.')
+    }
+  }
 
   return (
     <div className="page-content">
       <div className="budgets-toolbar">
-        <div className="month-selector"><span className="month-dot" /> October 2026 <ChevronDown size={16} /></div>
-        <button className="button button-primary" type="button"><Plus size={17} /> Create a budget</button>
+        <div className="month-selector"><span className="month-dot" /> {monthLabel}</div>
+        <button className="button button-primary" onClick={() => openForm()} type="button"><Plus size={17} /> Create a budget</button>
       </div>
 
+      {error && !formOpen && <div className="notice-error" role="alert">{error}</div>}
+      {success && <div className="planning-success" role="status">{success}</div>}
       <section className="budget-summary-grid">
         <article className="budget-summary-card budget-total-card">
           <div className="budget-summary-label">Total monthly budget</div>
           <strong>{formatCurrency(totalLimit)}</strong>
-          <div className="summary-progress"><span style={{ width: `${Math.min((totalSpent / totalLimit) * 100, 100)}%` }} /></div>
-          <div className="summary-meta"><span>{formatCurrency(totalSpent)} spent</span><span>{Math.round((totalSpent / totalLimit) * 100)}% used</span></div>
+          <div className="summary-progress"><span style={{ width: `${Math.min(percentageUsed, 100)}%` }} /></div>
+          <div className="summary-meta"><span>{formatCurrency(totalSpent)} spent</span><span>{percentageUsed}% used</span></div>
         </article>
         <article className="budget-summary-card">
           <span className="budget-summary-icon remaining-icon"><ArrowRight size={18} /></span>
@@ -48,18 +97,18 @@ function Budgets({ budgets }) {
         </article>
       </section>
 
-      {overspentBudgets.length > 0 && (
+      {overspentBudgets.length > 0 && !alertDismissed && (
         <div className="overspend-alert" role="status">
           <span className="alert-icon"><AlertTriangle size={18} /></span>
           <div><strong>You’ve gone over budget in {overspentBudgets.length} {overspentBudgets.length === 1 ? 'category' : 'categories'}.</strong><p>{overspentBudgets.map((budget) => `${budget.category} by ${formatCurrency(budget.spent - budget.limit)}`).join(' · ')}. Consider adjusting your spending plan.</p></div>
-          <button type="button" aria-label="Dismiss overspending alert">×</button>
+          <button onClick={() => setAlertDismissed(true)} type="button" aria-label="Dismiss overspending alert">×</button>
         </div>
       )}
 
       <section className="budget-section">
         <div className="budget-section-heading">
           <div><h3>Monthly budgets</h3><p>Track your spending against the limits you set</p></div>
-          <button type="button" className="select-button">All categories <ChevronDown size={14} /></button>
+          <span className="result-count">{budgets.length} categories</span>
         </div>
         <div className="budget-grid">
           {budgets.map((budget) => {
@@ -73,7 +122,10 @@ function Budgets({ budgets }) {
                 <div className="budget-card-top">
                   <span className={`budget-category-icon category-${budget.color}`}><Icon size={19} /></span>
                   {overBudget && <span className="overspent-badge"><AlertTriangle size={12} /> Over budget</span>}
-                  {!overBudget && <button className="row-action" type="button" aria-label={`More options for ${budget.category}`}><span>···</span></button>}
+                  <div className="budget-actions">
+                    <button className="row-action" onClick={() => openForm(budget)} type="button" aria-label={`Edit ${budget.category} budget`}><Pencil size={14} /></button>
+                    <button className="row-action" onClick={() => handleDelete(budget)} type="button" aria-label={`Delete ${budget.category} budget`}><Trash2 size={14} /></button>
+                  </div>
                 </div>
                 <h4>{budget.category}</h4>
                 <div className="budget-spending"><strong>{formatCurrency(budget.spent)}</strong><span>of {formatCurrency(budget.limit)}</span></div>
@@ -89,6 +141,24 @@ function Budgets({ budgets }) {
           })}
         </div>
       </section>
+      {formOpen && (
+        <div className="planning-modal-backdrop" onMouseDown={(event) => {
+          if (event.target === event.currentTarget) setFormOpen(false)
+        }}>
+          <section aria-labelledby="budget-form-heading" aria-modal="true" className="planning-modal" role="dialog">
+            <div className="planning-section-heading"><h2 id="budget-form-heading">{editing ? 'Edit budget' : 'Create a monthly budget'}</h2><p>Set a monthly spending limit for a category.</p></div>
+            <form className="planning-form" onSubmit={handleSave}>
+              <label>Category<input autoFocus maxLength="40" onChange={(event) => setForm((current) => ({ ...current, category: event.target.value }))} required value={form.category} /></label>
+              <label>Monthly limit<input min="0.01" onChange={(event) => setForm((current) => ({ ...current, limit: event.target.value }))} required step="0.01" type="number" value={form.limit} /></label>
+              {error && <span className="field-error" role="alert">{error}</span>}
+              <div className="planning-form-actions">
+                <button className="button button-secondary" onClick={() => setFormOpen(false)} type="button">Cancel</button>
+                <button className="button button-primary" type="submit">{editing ? 'Save changes' : 'Create budget'}</button>
+              </div>
+            </form>
+          </section>
+        </div>
+      )}
     </div>
   )
 }

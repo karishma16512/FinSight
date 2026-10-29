@@ -1,13 +1,26 @@
-import { NavLink } from 'react-router-dom'
-import { BarChart3, CircleHelp, LayoutDashboard, LogOut, WalletCards } from 'lucide-react'
+import { NavLink, useNavigate } from 'react-router-dom'
+import {
+  BarChart3, Calculator, CircleHelp, FileText, LayoutDashboard, LogOut, PiggyBank, ShieldCheck,
+  SlidersHorizontal, UserCircle2, WalletCards,
+} from 'lucide-react'
 
 const navigation = [
   { label: 'Dashboard', to: '/dashboard', icon: LayoutDashboard },
   { label: 'Transactions', to: '/transactions', icon: WalletCards },
   { label: 'Budgets', to: '/budgets', icon: BarChart3 },
+  { label: 'Financial Planning', to: '/savings-goals', icon: PiggyBank, group: true },
+  { label: 'Savings goals', to: '/savings-goals', icon: PiggyBank, nested: true },
+  { label: 'EMI calculator', to: '/emi-calculator', icon: Calculator, nested: true },
+  { label: 'Emergency fund', to: '/emergency-fund', icon: ShieldCheck, nested: true },
+  { label: 'What-if simulator', to: '/what-if-simulator', icon: SlidersHorizontal, nested: true },
+  { label: 'Reports & analytics', to: '/reports', icon: FileText },
+  { label: 'Profile', to: '/profile', icon: UserCircle2 },
 ]
 
-function Sidebar({ isOpen, onNavigate }) {
+function Sidebar({ isOpen, onNavigate, onLogout, user, budgetsCount }) {
+  const navigate = useNavigate()
+  const displayName = user?.fullName || 'Account'
+  const initials = displayName.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase()
   return (
     <aside className={`sidebar ${isOpen ? 'sidebar-open' : ''}`}>
       <NavLink className="brand" to="/dashboard" aria-label="FinSight home" onClick={onNavigate}>
@@ -17,11 +30,16 @@ function Sidebar({ isOpen, onNavigate }) {
 
       <div className="sidebar-label">WORKSPACE</div>
       <nav className="sidebar-nav" aria-label="Main navigation">
-        {navigation.map(({ label, to, icon: Icon }) => (
-          <NavLink className={({ isActive }) => `nav-link ${isActive ? 'nav-link-active' : ''}`} key={to} onClick={onNavigate} to={to}>
-            <Icon size={19} strokeWidth={1.9} />
-            <span>{label}</span>
-            {label === 'Budgets' && <span className="nav-count">8</span>}
+        {navigation.map(({ label, to, icon: Icon, nested, group }) => (
+          <NavLink
+            className={({ isActive }) => `nav-link ${nested ? 'nav-link-nested' : ''} ${isActive ? 'nav-link-active' : ''}`}
+            key={`${label}-${to}`}
+            onClick={onNavigate}
+            to={to}
+          >
+            {!nested && <Icon size={19} strokeWidth={1.9} />}
+            <span className={group ? 'nav-group-label' : ''}>{label}</span>
+            {!nested && label === 'Budgets' && budgetsCount > 0 && <span className="nav-count">{budgetsCount}</span>}
           </NavLink>
         ))}
       </nav>
@@ -31,18 +49,17 @@ function Sidebar({ isOpen, onNavigate }) {
           <div className="upgrade-icon"><BarChart3 size={17} /></div>
           <strong>Make your money work</strong>
           <p>Get a clearer picture of your financial future.</p>
-          <button type="button">Explore insights <span aria-hidden="true">→</span></button>
+          <button onClick={() => { navigate('/reports'); onNavigate?.() }} type="button">Explore insights <span aria-hidden="true">→</span></button>
         </div>
         <a className="sidebar-utility" href="mailto:support@finsight.app">
           <CircleHelp size={18} /><span>Help & support</span>
         </a>
-        <button className="sidebar-utility logout-button" type="button">
-          <LogOut size={18} /><span>Sign out</span>
-        </button>
+        <NavLink className="sidebar-utility logout-button" to="/login" onClick={() => { onLogout(); onNavigate() }}>
+          <LogOut size={18} /><span>Logout</span>
+        </NavLink>
         <div className="sidebar-profile">
-          <div className="avatar avatar-sidebar">JD</div>
-          <div><strong>Jordan Davis</strong><span>Personal account</span></div>
-          <span className="profile-dots">···</span>
+          <div className="avatar avatar-sidebar">{initials}</div>
+          <div><strong>{displayName}</strong><span>{user?.email || 'Personal account'}</span></div>
         </div>
       </div>
     </aside>

@@ -1,4 +1,5 @@
-import { ArrowDownRight, ArrowUpRight, CalendarDays, ChevronDown, Plus, Wallet, WalletCards } from 'lucide-react'
+import { ArrowDownRight, ArrowUpRight, CalendarDays, ChevronDown, Plus, Target, Wallet, WalletCards } from 'lucide-react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer,
@@ -6,6 +7,7 @@ import {
 } from 'recharts'
 import StatCard from '../components/StatCard'
 import TransactionTable from '../components/TransactionTable'
+import { getSavingsGoals } from '../services/financialPlanningApi'
 import { formatCurrency } from '../utils/formatters'
 
 function SpendingTooltip({ active, payload, label }) {
@@ -30,8 +32,16 @@ function CategoryTooltip({ active, payload }) {
   return <div className="chart-tooltip"><strong>{name}</strong><div className="tooltip-row"><span>Spent</span><b>{formatCurrency(value)}</b></div></div>
 }
 
-function Dashboard({ data }) {
-  const { summary, monthlySpending, expenseCategories, transactions } = data
+function Dashboard({ data, user }) {
+  const { summary, monthlySpending, expenseCategories, transactions, budgets } = data
+  const [goalState] = useState(() => {
+    try {
+      return { goals: getSavingsGoals(), error: '' }
+    } catch (error) {
+      return { goals: [], error: error.message || 'Unable to load savings goals.' }
+    }
+  })
+  const { goals, error: goalError } = goalState
   const latestTransactions = [...transactions]
     .sort((first, second) => second.date.localeCompare(first.date))
     .slice(0, 5)
@@ -42,23 +52,17 @@ function Dashboard({ data }) {
       <div className="welcome-strip">
         <div>
           <div className="eyebrow"><span className="status-dot" /> YOUR FINANCES AT A GLANCE</div>
-          <h2>Good afternoon, Jordan <span aria-hidden="true">✦</span></h2>
+          <h2>Welcome back, {user?.fullName || 'there'} <span aria-hidden="true">✦</span></h2>
           <p>You’re doing great — your spending is down this month.</p>
         </div>
         <Link className="button button-primary" to="/transactions"><Plus size={17} /> View transactions</Link>
       </div>
 
       <section className="stats-grid" aria-label="Monthly financial summary">
-        <StatCard label="Available balance" value={formatCurrency(summary.balance)} change={summary.balanceChange} note="vs. last month" icon={Wallet} tone="violet" />
+        <StatCard label="Total balance" value={formatCurrency(summary.balance)} change={summary.balanceChange} note="vs. last month" icon={Wallet} tone="violet" />
         <StatCard label="Total income" value={formatCurrency(summary.income)} change={summary.incomeChange} note="vs. last month" icon={ArrowDownRight} tone="green" />
         <StatCard label="Total expenses" value={formatCurrency(summary.expenses)} change={summary.expenseChange} note="vs. last month" icon={ArrowUpRight} tone="blue" />
-        <article className="stat-card savings-card">
-          <div className="stat-icon stat-icon-orange"><WalletCards size={19} /></div>
-          <div className="stat-label">Savings rate</div>
-          <div className="stat-value">{summary.savingsRate}<span className="value-suffix">%</span></div>
-          <div className="savings-track"><span style={{ width: `${summary.savingsRate}%` }} /></div>
-          <div className="savings-caption">of your income saved this month</div>
-        </article>
+        <StatCard label="Total savings" value={formatCurrency(summary.savings ?? Math.max(summary.income - summary.expenses, 0))} note={`${summary.savingsRate}% of income`} icon={WalletCards} tone="orange" />
       </section>
 
       <section className="charts-grid">
@@ -120,6 +124,49 @@ function Dashboard({ data }) {
           <Link className="text-link" to="/transactions">View all transactions <span aria-hidden="true">→</span></Link>
         </div>
         <TransactionTable transactions={latestTransactions} compact />
+      </section>
+
+      <section className="dashboard-planning-grid">
+        <article className="panel dashboard-overview-panel">
+          <div className="panel-heading recent-heading">
+            <div><h3>Budget overview</h3><p>Monthly spending against your category limits</p></div>
+            <Link className="text-link" to="/budgets">Manage budgets →</Link>
+          </div>
+          <div className="dashboard-progress-list">
+            {budgets.slice(0, 5).map((budget) => {
+              const percent = budget.limit > 0 ? Math.round((budget.spent / budget.limit) * 100) : 0
+              return (
+                <div className="dashboard-progress-item" key={budget.id}>
+                  <div><strong>{budget.category}</strong><span>{formatCurrency(budget.spent)} of {formatCurrency(budget.limit)}</span></div>
+                  <div className={`dashboard-progress ${percent > 100 ? 'dashboard-progress-over' : ''}`} role="progressbar" aria-valuemax="100" aria-valuemin="0" aria-valuenow={Math.min(percent, 100)} aria-label={`${budget.category} budget ${percent}% used`}><span style={{ width: `${Math.min(percent, 100)}%` }} /></div>
+                  <small>{percent}% used{percent > 100 ? ' · over budget' : ''}</small>
+                </div>
+              )
+            })}
+            {budgets.length === 0 && <p className="dashboard-empty">No budgets created yet. <Link to="/budgets">Create one</Link></p>}
+          </div>
+        </article>
+        <article className="panel dashboard-overview-panel">
+          <div className="panel-heading recent-heading">
+            <div><h3>Savings goals</h3><p>Progress toward your personal milestones</p></div>
+            <Link className="text-link" to="/savings-goals">View goals →</Link>
+          </div>
+          {goalError ? <p className="dashboard-empty" role="alert">{goalError}</p> : (
+            <div className="dashboard-progress-list">
+              {goals.slice(0, 4).map((goal) => {
+                const percent = goal.targetAmount > 0 ? Math.round((goal.currentAmount / goal.targetAmount) * 100) : 0
+                return (
+                  <div className="dashboard-progress-item" key={goal.id}>
+                    <div><strong><Target size={14} /> {goal.name}</strong><span>{formatCurrency(goal.currentAmount)} of {formatCurrency(goal.targetAmount)}</span></div>
+                    <div className="dashboard-progress dashboard-goal-progress" role="progressbar" aria-valuemax="100" aria-valuemin="0" aria-valuenow={Math.min(percent, 100)} aria-label={`${goal.name} ${percent}% complete`}><span style={{ width: `${Math.min(percent, 100)}%` }} /></div>
+                    <small>{formatCurrency(Math.max(goal.targetAmount - goal.currentAmount, 0))} remaining</small>
+                  </div>
+                )
+              })}
+              {goals.length === 0 && <p className="dashboard-empty">No savings goals created yet. <Link to="/savings-goals">Set a goal</Link></p>}
+            </div>
+          )}
+        </article>
       </section>
     </div>
   )
