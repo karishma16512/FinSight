@@ -3,15 +3,25 @@ import { Link } from 'react-router-dom'
 
 function LoginPage({ onLogin }) {
   const [form, setForm] = useState({ email: '', password: '' })
+  const [error, setError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
 
   function handleChange(event) {
     const { name, value } = event.target
     setForm((current) => ({ ...current, [name]: value }))
   }
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault()
-    onLogin({ email: form.email, fullName: form.email.split('@')[0] })
+    setError('')
+    setSubmitting(true)
+    try {
+      await onLogin(form)
+    } catch (loginError) {
+      setError(loginError.message || 'Unable to log in.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -30,9 +40,9 @@ function LoginPage({ onLogin }) {
             Password
             <input name="password" onChange={handleChange} required type="password" value={form.password} />
           </label>
-          <button className="button button-primary" type="submit">Log in</button>
+          {error && <span className="field-error" role="alert">{error}</span>}
+          <button className="button button-primary" disabled={submitting} type="submit">{submitting ? 'Logging in…' : 'Log in'}</button>
         </form>
-        <p className="auth-demo-note">Demo mode: this frontend does not verify credentials. Connect an authentication backend before using real accounts.</p>
         <p className="auth-auxiliary">
           Don’t have an account? <Link to="/register">Create one</Link>
         </p>

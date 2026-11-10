@@ -2,6 +2,9 @@ const express = require("express");
 const cors = require("cors");
 const dotenv = require("dotenv");
 const path = require("path");
+
+dotenv.config({ path: path.join(__dirname, ".env") });
+
 const connectDB = require("./config/db");
 
 const authRoutes = require("./routes/authRoutes");
@@ -12,8 +15,6 @@ const simulatorRoutes = require("./routes/simulatorRoutes");
 const savingsGoalRoutes = require("./routes/savingsGoalRoutes");
 const budgetRoutes = require("./routes/budgetRoutes");
 const analyticsRoutes = require("./routes/analyticsRoutes");
-
-dotenv.config({ path: path.join(__dirname, ".env") });
 
 const app = express();
 
@@ -39,6 +40,9 @@ app.get("/", (req, res) => {
 const PORT = process.env.PORT || 5000;
 
 const startServer = async () => {
+  if (!process.env.JWT_SECRET) {
+    throw new Error("JWT_SECRET is missing. Add a secret value to backend/.env.");
+  }
   await connectDB();
 
   app.listen(PORT, () => {
@@ -46,4 +50,7 @@ const startServer = async () => {
   });
 };
 
-startServer();
+startServer().catch((error) => {
+  console.error("Unable to start FinSight backend:", error.message);
+  process.exitCode = 1;
+});

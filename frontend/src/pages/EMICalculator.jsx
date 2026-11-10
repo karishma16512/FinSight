@@ -1,14 +1,16 @@
 import { Calculator, Info } from 'lucide-react'
 import { useState } from 'react'
 import EMIResultCard from '../components/financial-planning/EMIResultCard'
-import { calculateEmi } from '../utils/financialCalculations'
+import { calculateEmi } from '../services/financeApi'
 
 function EMICalculator() {
   const [loanAmount, setLoanAmount] = useState('2500000')
   const [annualRate, setAnnualRate] = useState('8.5')
   const [tenure, setTenure] = useState('20')
   const [tenureUnit, setTenureUnit] = useState('years')
-  const [submitted, setSubmitted] = useState(false)
+  const [results, setResults] = useState(null)
+  const [error, setError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
 
   const principal = Number(loanAmount)
   const rate = Number(annualRate)
@@ -17,7 +19,28 @@ function EMICalculator() {
     && Number.isFinite(principal) && principal > 0
     && Number.isFinite(rate) && rate >= 0
     && Number.isFinite(tenureMonths) && Number.isInteger(tenureMonths) && tenureMonths > 0
-  const results = valid ? calculateEmi(principal, rate, tenureMonths) : null
+  async function handleSubmit(event) {
+    event.preventDefault()
+    if (!valid) return
+    setError('')
+    setSubmitting(true)
+    try {
+      const response = await calculateEmi({
+        loanAmount: principal,
+        annualInterestRate: rate,
+        tenureMonths,
+      })
+      setResults({
+        monthlyEmi: response.data.monthlyEMI,
+        totalInterest: response.data.totalInterest,
+        totalRepayment: response.data.totalPayment,
+      })
+    } catch (requestError) {
+      setError(requestError.message || 'Unable to calculate EMI.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
   return (
     <div className="page-content planning-page">
@@ -30,7 +53,7 @@ function EMICalculator() {
       </section>
 
       <div className="calculator-layout">
-        <form className="planning-card calculator-inputs" onSubmit={(event) => { event.preventDefault(); setSubmitted(true) }}>
+        <form className="planning-card calculator-inputs" onSubmit={handleSubmit}>
           <div className="planning-section-heading"><h2>Loan details</h2><p>Adjust values to explore different repayment plans.</p></div>
           <label className="planning-field">
             Loan amount
@@ -53,11 +76,12 @@ function EMICalculator() {
             </label>
           </div>
           {!valid && <span className="field-error" role="alert">Enter a positive loan amount and tenure, and a non-negative interest rate.</span>}
+          {error && <span className="field-error" role="alert">{error}</span>}
           <div className="planning-hint"><Info size={15} /><span>Estimates use a fixed rate and equal monthly payments. Actual lender terms may vary.</span></div>
-          <button className="button button-primary" disabled={!valid} type="submit">Calculate EMI</button>
+          <button className="button button-primary" disabled={!valid || submitting} type="submit">{submitting ? 'Calculating…' : 'Calculate EMI'}</button>
         </form>
 
-        {submitted && results && <EMIResultCard principal={principal} results={results} />}
+        {results && <EMIResultCard principal={principal} results={results} />}
       </div>
     </div>
   )

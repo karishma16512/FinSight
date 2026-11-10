@@ -73,11 +73,11 @@ function Transactions({ transactions, summary, onDataChange }) {
     setSuccess('')
   }
 
-  function handleSave(event) {
+  async function handleSave(event) {
     event.preventDefault()
     try {
-      saveTransaction(form, editing?.id)
-      onDataChange()
+      await saveTransaction(form, editing?.id)
+      await onDataChange()
       setFormOpen(false)
       setError('')
       setSuccess(editing ? 'Transaction updated.' : 'Transaction added.')
@@ -86,11 +86,11 @@ function Transactions({ transactions, summary, onDataChange }) {
     }
   }
 
-  function handleDelete(transaction) {
+  async function handleDelete(transaction) {
     if (!window.confirm(`Delete "${transaction.description}"? This cannot be undone.`)) return
     try {
-      deleteTransaction(transaction.id)
-      onDataChange()
+      await deleteTransaction(transaction.id)
+      await onDataChange()
       setError('')
       setSuccess('Transaction deleted.')
     } catch (deleteError) {

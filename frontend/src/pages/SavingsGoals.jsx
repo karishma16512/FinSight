@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Plus, Target } from 'lucide-react'
 import SavingsGoalCard from '../components/financial-planning/SavingsGoalCard'
 import SavingsGoalForm from '../components/financial-planning/SavingsGoalForm'
@@ -8,19 +8,20 @@ import {
 import { formatCurrency } from '../utils/formatters'
 
 function SavingsGoals() {
-  const [initialState] = useState(() => {
-    try {
-      return { goals: getSavingsGoals(), error: '' }
-    } catch (loadError) {
-      return { goals: [], error: loadError.message || 'Unable to load savings goals.' }
-    }
-  })
-  const [goals, setGoals] = useState(initialState.goals)
-  const [error, setError] = useState(initialState.error)
+  const [goals, setGoals] = useState([])
+  const [error, setError] = useState('')
   const [formGoal, setFormGoal] = useState(undefined)
   const [contributionGoal, setContributionGoal] = useState(null)
   const [contributionAmount, setContributionAmount] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
+
+  useEffect(() => {
+    let active = true
+    getSavingsGoals()
+      .then((savedGoals) => { if (active) setGoals(savedGoals) })
+      .catch((loadError) => { if (active) setError(loadError.message || 'Unable to load savings goals.') })
+    return () => { active = false }
+  }, [])
 
   const totals = useMemo(() => goals.reduce((summary, goal) => ({
     current: summary.current + goal.currentAmount,
@@ -28,12 +29,15 @@ function SavingsGoals() {
   }), { current: 0, target: 0 }), [goals])
   const overallProgress = totals.target > 0 ? Math.min((totals.current / totals.target) * 100, 100) : 0
 
-  function saveGoal(goal) {
+  async function saveGoal(goal) {
     try {
-      const nextGoals = formGoal
+      const savedGoal = formGoal
         ? updateSavingsGoal(formGoal.id, goal)
         : createSavingsGoal(goal)
-      setGoals(nextGoals)
+      const goalResult = await savedGoal
+      setGoals((current) => formGoal
+        ? current.map((item) => item.id === goalResult.id ? goalResult : item)
+        : [...current, goalResult])
       setFormGoal(undefined)
       setError('')
       setSuccessMessage(formGoal ? 'Your savings goal was updated.' : 'Your savings goal was created.')
@@ -42,10 +46,11 @@ function SavingsGoals() {
     }
   }
 
-  function removeGoal(goal) {
+  async function removeGoal(goal) {
     if (!window.confirm(`Delete "${goal.name}"? This cannot be undone.`)) return
     try {
-      setGoals(deleteSavingsGoal(goal.id))
+      await deleteSavingsGoal(goal.id)
+      setGoals((current) => current.filter((item) => item.id !== goal.id))
       setError('')
       setSuccessMessage(`${goal.name} was deleted.`)
     } catch (deleteError) {
@@ -53,13 +58,14 @@ function SavingsGoals() {
     }
   }
 
-  function addContribution(event) {
+  async function addContribution(event) {
     event.preventDefault()
     const amount = Number(contributionAmount)
     if (!contributionGoal || !Number.isFinite(amount) || amount <= 0) return
 
     try {
-      setGoals(contributeToSavingsGoal(contributionGoal.id, amount))
+      const updatedGoal = await contributeToSavingsGoal(contributionGoal.id, amount)
+      setGoals((current) => current.map((item) => item.id === updatedGoal.id ? updatedGoal : item))
       setContributionGoal(null)
       setContributionAmount('')
       setError('')

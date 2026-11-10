@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react'
 import { SlidersHorizontal } from 'lucide-react'
 import SimulationResults from '../components/financial-planning/SimulationResults'
 import { simulatorDefaults } from '../data/financialPlanningMockData'
-import { projectBaseline, projectScenario } from '../utils/financialCalculations'
+import { projectBaseline } from '../utils/financialCalculations'
+import { simulateScenario } from '../services/financeApi'
 
 const scenarioFields = [
   { key: 'monthlyIncome', label: 'Monthly income', prefix: '₹', step: '1000' },
@@ -16,6 +17,8 @@ const scenarioFields = [
 function WhatIfSimulator() {
   const [scenario, setScenario] = useState(() => ({ ...simulatorDefaults }))
   const [simulatedScenario, setSimulatedScenario] = useState(null)
+  const [error, setError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
   const valid = Object.values(scenario).every(Number.isFinite)
     && scenario.monthlyIncome > 0
     && scenario.monthlyExpenses >= 0
@@ -24,11 +27,47 @@ function WhatIfSimulator() {
     && scenario.expenseChange >= -100 && scenario.expenseChange <= 1000
     && scenario.durationMonths >= 1 && scenario.durationMonths <= 600 && Number.isInteger(scenario.durationMonths)
 
-  const projected = useMemo(() => simulatedScenario ? projectScenario(simulatedScenario) : null, [simulatedScenario])
-  const baseline = useMemo(() => simulatedScenario ? projectBaseline(simulatedScenario) : null, [simulatedScenario])
+  const projected = simulatedScenario?.projected || null
+  const baseline = useMemo(() => simulatedScenario ? projectBaseline(simulatedScenario.inputs) : null, [simulatedScenario])
 
   function updateScenario(key, value) {
     setScenario((current) => ({ ...current, [key]: value === '' ? '' : Number(value) }))
+  }
+
+  async function handleSubmit(event) {
+    event.preventDefault()
+    if (!valid) return
+    setError('')
+    setSubmitting(true)
+    try {
+      const response = await simulateScenario({
+        monthlyIncome: scenario.monthlyIncome,
+        monthlyExpenses: scenario.monthlyExpenses,
+        incomeChange: scenario.incomeChange,
+        expenseChange: scenario.expenseChange,
+        months: scenario.durationMonths,
+        currentSavings: scenario.currentSavings,
+      })
+      const { data } = response
+      setSimulatedScenario({
+        inputs: { ...scenario },
+        projected: {
+          projectedSavings: data.projectedTotalSavings,
+          scenarioMonthlySurplus: data.projectedMonthlySavings,
+          timeline: [
+            { period: 'Now', savings: scenario.currentSavings },
+            ...data.projectionData.map((point) => ({
+              period: `Month ${point.month}`,
+              savings: point.totalSavings,
+            })),
+          ],
+        },
+      })
+    } catch (requestError) {
+      setError(requestError.message || 'Unable to simulate this scenario.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -41,10 +80,7 @@ function WhatIfSimulator() {
         </div>
       </section>
 
-      <form className="planning-card simulator-inputs" onSubmit={(event) => {
-        event.preventDefault()
-        if (valid) setSimulatedScenario({ ...scenario })
-      }}>
+      <form className="planning-card simulator-inputs" onSubmit={handleSubmit}>
         <div className="planning-section-heading"><h2>Adjust your scenario</h2><p>Compare your current plan with these what-if assumptions.</p></div>
         <div className="simulator-fields">
           {scenarioFields.map(({ key, label, prefix, suffix, step }) => (
@@ -68,13 +104,14 @@ function WhatIfSimulator() {
           ))}
         </div>
         {!valid && <span className="field-error" role="alert">Enter a positive income, non-negative expenses and savings, changes between -100% and 1000%, and a duration between 1 and 600 months.</span>}
-        <button className="button button-primary" disabled={!valid} type="submit">Simulate</button>
+        {error && <span className="field-error" role="alert">{error}</span>}
+        <button className="button button-primary" disabled={!valid || submitting} type="submit">{submitting ? 'Simulating…' : 'Simulate'}</button>
       </form>
 
       {projected && baseline && (
         <SimulationResults
           baseline={baseline}
-          currentSurplus={simulatedScenario.monthlyIncome - simulatedScenario.monthlyExpenses}
+          currentSurplus={simulatedScenario.inputs.monthlyIncome - simulatedScenario.inputs.monthlyExpenses}
           modified={projected}
         />
       )}

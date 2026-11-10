@@ -1,5 +1,5 @@
 import { ArrowDownRight, ArrowUpRight, CalendarDays, ChevronDown, Plus, Target, Wallet, WalletCards } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer,
@@ -34,14 +34,15 @@ function CategoryTooltip({ active, payload }) {
 
 function Dashboard({ data, user }) {
   const { summary, monthlySpending, expenseCategories, transactions, budgets } = data
-  const [goalState] = useState(() => {
-    try {
-      return { goals: getSavingsGoals(), error: '' }
-    } catch (error) {
-      return { goals: [], error: error.message || 'Unable to load savings goals.' }
-    }
-  })
-  const { goals, error: goalError } = goalState
+  const [goals, setGoals] = useState([])
+  const [goalError, setGoalError] = useState('')
+  useEffect(() => {
+    let active = true
+    getSavingsGoals()
+      .then((savedGoals) => { if (active) setGoals(savedGoals) })
+      .catch((error) => { if (active) setGoalError(error.message || 'Unable to load savings goals.') })
+    return () => { active = false }
+  }, [])
   const latestTransactions = [...transactions]
     .sort((first, second) => second.date.localeCompare(first.date))
     .slice(0, 5)

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { getFinanceData } from './services/financeApi'
-import { endSession, getCurrentUser, startSession } from './services/authSession'
+import { endSession, getCurrentUser, login, register } from './services/authSession'
 import Sidebar from './components/Sidebar'
 import Navbar from './components/Navbar'
 import Dashboard from './pages/Dashboard'
@@ -96,8 +96,14 @@ function FinanceLayout({ user, onLogout }) {
 function FinanceApp() {
   const [user, setUser] = useState(getCurrentUser)
 
-  function handleAuthenticate(profile) {
-    setUser(startSession(profile))
+  async function handleLogin(credentials) {
+    const profile = await login(credentials)
+    setUser(profile)
+  }
+
+  async function handleRegister(profile) {
+    const user = await register(profile)
+    setUser(user)
   }
 
   function handleLogout() {
@@ -109,11 +115,11 @@ function FinanceApp() {
     <Routes>
       <Route
         path="/login"
-        element={user ? <Navigate to="/dashboard" replace /> : <LoginPage onLogin={handleAuthenticate} />}
+        element={user ? <Navigate to="/dashboard" replace /> : <LoginPage onLogin={handleLogin} />}
       />
       <Route
         path="/register"
-        element={user ? <Navigate to="/dashboard" replace /> : <RegisterPage onRegister={handleAuthenticate} />}
+        element={user ? <Navigate to="/dashboard" replace /> : <RegisterPage onRegister={handleRegister} />}
       />
       <Route path="/*" element={user ? <FinanceLayout user={user} onLogout={handleLogout} /> : <Navigate to="/login" replace />} />
       <Route path="*" element={<Navigate to={user ? '/dashboard' : '/login'} replace />} />

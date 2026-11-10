@@ -12,6 +12,11 @@ const savingsGoalSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+    category: {
+      type: String,
+      default: "Personal",
+      trim: true,
+    },
     targetAmount: {
       type: Number,
       required: true,

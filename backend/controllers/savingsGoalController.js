@@ -2,7 +2,7 @@ const SavingsGoal = require("../models/SavingsGoal");
 
 const createSavingsGoal = async (req, res) => {
   try {
-    const { goalName, targetAmount, currentAmount, targetDate } = req.body;
+    const { goalName, targetAmount, currentAmount, targetDate, category } = req.body;
 
     if (!goalName || !targetAmount || !targetDate) {
       return res.status(400).json({
@@ -46,6 +46,7 @@ const createSavingsGoal = async (req, res) => {
     const goal = await SavingsGoal.create({
       user: req.user.id,
       goalName: goalName.trim(),
+      category: typeof category === "string" && category.trim() ? category.trim() : "Personal",
       targetAmount: parsedTargetAmount,
       currentAmount: parsedCurrentAmount,
       targetDate: parsedTargetDate,
@@ -110,7 +111,7 @@ const getSavingsGoalById = async (req, res) => {
 
 const updateSavingsGoal = async (req, res) => {
   try {
-    const { goalName, targetAmount, currentAmount, targetDate } = req.body;
+    const { goalName, targetAmount, currentAmount, targetDate, category } = req.body;
 
     const goal = await SavingsGoal.findOne({
       _id: req.params.id,
@@ -130,6 +131,15 @@ const updateSavingsGoal = async (req, res) => {
         });
       }
       goal.goalName = goalName.trim();
+    }
+
+    if (category !== undefined) {
+      if (typeof category !== "string" || !category.trim()) {
+        return res.status(400).json({
+          message: "Goal category cannot be empty",
+        });
+      }
+      goal.category = category.trim();
     }
 
     if (targetAmount !== undefined) {
@@ -286,6 +296,7 @@ const buildSavingsGoalResponse = (goal) => {
     _id: goal._id,
     user: goal.user,
     goalName: goal.goalName,
+    category: goal.category,
     targetAmount: goal.targetAmount,
     currentAmount: goal.currentAmount,
     remainingAmount,

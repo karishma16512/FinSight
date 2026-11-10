@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { ShieldCheck } from 'lucide-react'
 import EmergencyFundProgress from '../components/financial-planning/EmergencyFundProgress'
-import { calculateEmergencyFund } from '../utils/financialCalculations'
+import { calculateEmergencyFund } from '../services/financeApi'
 
 function EmergencyFund() {
   const [monthlyExpenses, setMonthlyExpenses] = useState('45000')
@@ -9,6 +9,9 @@ function EmergencyFund() {
   const [currentSavings, setCurrentSavings] = useState('90000')
   const [monthlyContribution, setMonthlyContribution] = useState('10000')
   const [targetTimeline, setTargetTimeline] = useState('12')
+  const [result, setResult] = useState(null)
+  const [error, setError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
 
   const expenses = Number(monthlyExpenses)
   const months = Number(monthsToCover)
@@ -18,9 +21,30 @@ function EmergencyFund() {
   const valid = [expenses, months, savings, contribution, timeline].every(Number.isFinite)
     && expenses > 0 && months > 0 && Number.isInteger(months)
     && savings >= 0 && contribution >= 0 && timeline > 0 && Number.isInteger(timeline)
-  const result = valid
-    ? calculateEmergencyFund(expenses, months, savings, contribution)
-    : null
+  async function handleSubmit(event) {
+    event.preventDefault()
+    if (!valid) return
+    setError('')
+    setSubmitting(true)
+    try {
+      const response = await calculateEmergencyFund({
+        monthlyExpenses: expenses,
+        months,
+        currentSavings: savings,
+      })
+      const { recommendedFund, savingsGap } = response.data
+      setResult({
+        targetAmount: recommendedFund,
+        remainingAmount: savingsGap,
+        progress: recommendedFund > 0 ? Math.min((savings / recommendedFund) * 100, 100) : 0,
+        monthsToTarget: savingsGap === 0 ? 0 : contribution > 0 ? Math.ceil(savingsGap / contribution) : null,
+      })
+    } catch (requestError) {
+      setError(requestError.message || 'Unable to calculate your emergency fund target.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
   const recommendedContribution = result
     ? result.remainingAmount / timeline
     : 0
@@ -36,7 +60,7 @@ function EmergencyFund() {
       </section>
 
       <div className="calculator-layout">
-        <section className="planning-card calculator-inputs">
+        <form className="planning-card calculator-inputs" onSubmit={handleSubmit}>
           <div className="planning-section-heading"><h2>Your emergency fund plan</h2><p>Set a target that reflects your household and timeline.</p></div>
           <label className="planning-field">
             Monthly essential expenses
@@ -63,8 +87,10 @@ function EmergencyFund() {
             <input min="1" onChange={(event) => setTargetTimeline(event.target.value)} required step="1" type="number" value={targetTimeline} />
           </label>
           {!valid && <span className="field-error" role="alert">Enter positive expenses and timeframes, and savings and contributions of zero or more.</span>}
+          {error && <span className="field-error" role="alert">{error}</span>}
           <div className="planning-hint"><ShieldCheck size={15} /><span>Emergency funds are generally kept accessible and separate from long-term investments.</span></div>
-        </section>
+          <button className="button button-primary" disabled={!valid || submitting} type="submit">{submitting ? 'Calculating…' : 'Calculate fund target'}</button>
+        </form>
 
         {result && (
           <EmergencyFundProgress

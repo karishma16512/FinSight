@@ -35,16 +35,16 @@ function Budgets({ budgets, onDataChange }) {
     setError('')
   }
 
-  function handleSave(event) {
+  async function handleSave(event) {
     event.preventDefault()
     try {
-      saveBudget({
+      await saveBudget({
         ...editing,
         ...form,
         icon: editing?.icon || 'shopping-cart',
         color: editing?.color || 'violet',
       }, editing?.id)
-      onDataChange()
+      await onDataChange()
       setFormOpen(false)
       setSuccess(editing ? 'Budget updated.' : 'Budget created.')
       setError('')
@@ -53,11 +53,11 @@ function Budgets({ budgets, onDataChange }) {
     }
   }
 
-  function handleDelete(budget) {
+  async function handleDelete(budget) {
     if (!window.confirm(`Delete the ${budget.category} budget?`)) return
     try {
-      deleteBudget(budget.id)
-      onDataChange()
+      await deleteBudget(budget.id)
+      await onDataChange()
       setSuccess(`${budget.category} budget deleted.`)
       setError('')
     } catch (deleteError) {

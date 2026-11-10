@@ -22,19 +22,24 @@ const simulateFinancialScenario = async (req, res) => {
       });
     }
 
+    const values = [monthlyIncome, monthlyExpenses, incomeChange, expenseChange, months, currentSavings];
     if (
-      monthlyIncome < 0 ||
+      !values.every((value) => Number.isFinite(value)) ||
+      monthlyIncome <= 0 ||
       monthlyExpenses < 0 ||
       months <= 0 ||
-      currentSavings < 0
+      !Number.isInteger(months) ||
+      currentSavings < 0 ||
+      incomeChange < -100 ||
+      expenseChange < -100
     ) {
       return res.status(400).json({
         message: "Please provide valid financial values",
       });
     }
 
-    const adjustedMonthlyIncome = monthlyIncome + incomeChange;
-    const adjustedMonthlyExpenses = monthlyExpenses + expenseChange;
+    const adjustedMonthlyIncome = monthlyIncome * (1 + incomeChange / 100);
+    const adjustedMonthlyExpenses = monthlyExpenses * (1 + expenseChange / 100);
 
     if (adjustedMonthlyIncome < 0 || adjustedMonthlyExpenses < 0) {
       return res.status(400).json({

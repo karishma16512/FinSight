@@ -16,7 +16,8 @@ const registerUser = async (req, res) => {
         }
 
         // Check whether the email already exists
-        const existingUser = await User.findOne({ email });
+        const normalizedEmail = email.trim().toLowerCase();
+        const existingUser = await User.findOne({ email: normalizedEmail });
 
         if (existingUser) {
             return res.status(409).json({
@@ -30,11 +31,18 @@ const registerUser = async (req, res) => {
         // Create the user
         const user = await User.create({
             name,
-            email,
+            email: normalizedEmail,
             password: hashedPassword,
         });
 
+        const token = jwt.sign(
+            { id: user._id },
+            process.env.JWT_SECRET,
+            { expiresIn: "7d" }
+        );
+
         res.status(201).json({
+            token,
             message: "User registered successfully",
             user: {
                 id: user._id,
@@ -60,7 +68,7 @@ const loginUser = async (req, res) => {
       });
     }
 
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email: email.trim().toLowerCase() });
 
     if (!user) {
       return res.status(401).json({

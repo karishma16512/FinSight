@@ -3,15 +3,25 @@ import { Link } from 'react-router-dom'
 
 function RegisterPage({ onRegister }) {
   const [form, setForm] = useState({ fullName: '', email: '', password: '' })
+  const [error, setError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
 
   function handleChange(event) {
     const { name, value } = event.target
     setForm((current) => ({ ...current, [name]: value }))
   }
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault()
-    onRegister({ email: form.email, fullName: form.fullName })
+    setError('')
+    setSubmitting(true)
+    try {
+      await onRegister(form)
+    } catch (registerError) {
+      setError(registerError.message || 'Unable to create your account.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -34,9 +44,9 @@ function RegisterPage({ onRegister }) {
             Password
             <input minLength="8" name="password" onChange={handleChange} required type="password" value={form.password} />
           </label>
-          <button className="button button-primary" type="submit">Create account</button>
+          {error && <span className="field-error" role="alert">{error}</span>}
+          <button className="button button-primary" disabled={submitting} type="submit">{submitting ? 'Creating account…' : 'Create account'}</button>
         </form>
-        <p className="auth-demo-note">Demo mode: account details are kept only in this browser session. No password is stored or verified.</p>
         <p className="auth-auxiliary">
           Already have an account? <Link to="/login">Log in</Link>
         </p>
